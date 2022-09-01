@@ -1,29 +1,5 @@
-FROM alpine:edge
+from alpine:edge
 
-#Enable other repositories
-RUN echo "http://dl-cdn.alpinelinux.org/alpine/edge/community" | tee -a /etc/apk/repositories && \
-	apk update && apk upgrade
+COPY ./create-iso .
 
-#Install dependencies
-RUN apk add alpine-sdk build-base apk-tools alpine-conf busybox \
-            fakeroot syslinux squashfs-tools xorriso\
-	    mtools dosfstools grub-efi make \
-            git doas
-
-#Setup Abuild
-RUN adduser -h /home/build -D build -G abuild && echo "permit nopass build" >> /etc/doas.d/doas.conf && su build -c "echo | abuild-keygen -a -i"
-
-#Clone aports
-RUN su build -c "git clone --depth=1 https://gitlab.alpinelinux.org/alpine/aports.git /home/build/aports && cd /home/build"
-
-#Add the custom profile
-COPY ./mkimg.custom.sh /home/build/aports/scripts/mkimg.custom.sh
-
-#Make the iso
-RUN su build -c " mkdir -p ~/iso && sh ~/aports/scripts/mkimage.sh --tag edge \
-	--outdir ~/iso \
-	--arch x86_64 \
-	--repository http://dl-cdn.alpinelinux.org/alpine/edge/main \
-	--repository http://dl-cdn.alpinelinux.org/alpine/edge/community \
-	--profile custom "
-
+CMD [ "./create-iso"]
