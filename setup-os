@@ -10,81 +10,111 @@
 #==================================================================================================
 
 #========== Functionality ==========
-run(){
 
-#Check if wired or wireless
-ipaddr | grep -E "wlan[0-9]"
-if [ "$?" -eq 0 ]; then 
-	: ${INTERFACE="$(ipaddr | grep -E "wlan[0-9]" | awk -F: '{print $2}' | tr -d '\n') "}
-	WIRED="FALSE"
-else
-	: ${INTERFACE="$(ipaddr | grep -E "eth[0-9]" | awk -F: '{print $2}' | tr -d '\n') "}
-	WIRED="TRUE"
-	
-fi
+Get_Interface(){
 
-#Create /etc/network/interfaces content for the answer file
-cat <<EOF>> ./inet
+ #Check if wired or wireless
+ ipaddr | grep -E "wlan[0-9]"
+ if [ "$?" -eq 0 ]; then 
+	 : ${INTERFACE="$(ipaddr | grep -E "wlan[0-9]" | awk -F: '{print $2}' | tr -d '\n' | tr -d ' ') "}
+	 WIRED="FALSE"
+ else
+	 : ${INTERFACE="$(ipaddr | grep -E "eth[0-9]" | awk -F: '{print $2}' | tr -d '\n' | tr -d ' ') "}
+	 WIRED="TRUE"
+ fi
 
-EOF
+}
 
-#Create answer file for setup-alpine
-cat <<EOF >> ./answer
-KEYMAPOPTS="$KEYMAP"
-HOSTNAMEOPTS="-n $HOST"
-DEVDOPTS=mdev
 
-# Contents of /etc/network/interfaces
-INTERFACESOPTS="auto lo
-iface lo inet loopback
 
-auto $INTERFACE
-iface eth0 inet dhcp
-    hostname alpine-test
-"
+Create_Answer(){
 
-# Search domain of example.com, Google public nameserver
-# DNSOPTS="-d example.com 8.8.8.8"
+ #Create interface settings for the answer file
+ if [ "$INET" == "static" ]; then
+ 	NET_VARS="$(echo -e "	address $IP
+     	 netmask $NETMASK
+    	 gateway $GATEWAY")"
+ else
+	NET_VARS="$(echo -e "hostname $HOST")"
+ fi
 
-# Set timezone to UTC
-#TIMEZONEOPTS="UTC"
-TIMEZONEOPTS=none
+ #Create answer file for setup-alpine
+ cat <<EOF >> ./answer
+ KEYMAPOPTS="$KEYMAP"
+ HOSTNAMEOPTS="-n $HOST"
+ DEVDOPTS=mdev
 
-# set http/ftp proxy
-#PROXYOPTS="http://webproxy:8080"
-PROXYOPTS=none
+ # Contents of /etc/network/interfaces
+ iface lo inet loopback
 
-# Add first mirror (CDN)
-APKREPOSOPTS="-1"
+ auto $INTERFACE
+    iface $(echo $INTERFACE | cut -c1-4) inet $INET
+     $NET_VARS
+ "
 
-# Create admin user
-USEROPTS="-a -u -g audio,video,netdev juser"
-#USERSSHKEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOIiHcbg/7ytfLFHUNLRgEAubFz/13SwXBOM/05GNZe4 juser@example.com"
-#USERSSHKEY="https://example.com/juser.keys"
+ DNSOPTS="-d $HOST.local 1.1.1.1"
 
-# Install Openssh
-SSHDOPTS=openssh
-#ROOTSSHKEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOIiHcbg/7ytfLFHUNLRgEAubFz/13SwXBOM/05GNZe4 juser@example.com"
-#ROOTSSHKEY="https://example.com/juser.keys"
+ TIMEZONEOPTS="-z $TIMEZONE"
+ PROXYOPTS=none
+ APKREPOSOPTS="-1"
 
-# Use openntpd
-# NTPOPTS="openntpd"
-NTPOPTS=none
+ USEROPTS="-a -u -g wheel $USERNAME"
+ SSHDOPTS=openssh
+ NTPOPTS="openntpd"
+ DISKOPTS="-m sys $DISK"
+ LBUOPTS=none
+ APKCACHEOPTS=none
 
-# Use /dev/sda as a sys disk
-# DISKOPTS="-m sys /dev/sda"
-DISKOPTS=none
-
-# Setup storage with label APKOVL for config storage
-#LBUOPTS="LABEL=APKOVL"
-LBUOPTS=none
-
-#APKCACHEOPTS="/media/LABEL=APKOVL/cache"
-APKCACHEOPTS=none
 EOF
 
 }
 
+Setup(){
+
+ #Install the system 
+ yes | setup-alpine -f ./answer
+ rm ./answer
+
+ #Mount partitions for the choot
+ mount -t ext4 $DISK /mnt
+ mount -t sysfs sys /mnt/sys
+ mount -o bind /dev /mnt/dev
+ cat /etc/resolv.conf >> /mnt/etc/resolv.conf
+
+ #Setup repos
+ cat << EOF | chroot /mnt /bin/sh
+  cat > /etc/apk/repositories << EOF2; $(echo)
+  https://dl-cdn.alpinelinux.org/alpine/latest-stable/main
+  https://dl-cdn.alpinelinux.org/alpine/latest-stable/community
+ EOF2
+ apk update
+ apk upgrade -a
+EOF
+
+#Unmount chroot
+ mount /mnt/sys
+ umount /mnt/dev
+ umount /mnt
+
+#boot into the new machine
+ reboot
+
+}
+
+Usage(){
+ echo -e "This script is used to setup the alpine base system
+   arguments:
+   -M	: What mode to use(standalone,ansible-master,ansible-node)
+   -H	: The hostname for the device
+   -I	: The Interface to be used, defaults to wlan if found or eth0
+   -i	: The ip for the device, leave empty to use dhcp, will be prompted if dhcp fails
+   -N	: The NetMask, only required when not using dhcp
+   -G	: The GateWay ip, only required when not using dhcp
+   -U	: Username for the administrator, defaults to admin
+   -K	: Keymap, defaults to us-altgr-intl
+   -T	: Timezone, defaults to Europe/Amsterdam
+   -D	: Disk name (sda/nvme01), defaults to sda"
+}
 
 #Some help
 # interface checks for wireless first and uses that, otherwise it defaults to the first eth it can find
@@ -96,7 +126,7 @@ EOF
 if ! [ "$(id -u )" -eq 0 ]; then echo "Root is required for this script"; exit 1; fi
 
 # Handle arguments
-while getopts ':M:H:I:i:N:G:U:K:T:h' OPTION; do
+while getopts ':M:H:I:i:N:G:U:K:T:D:h' OPTION; do
 	case "$OPTION" in
 		M) MODE="$OPTARG";;
 		H) HOST="$OPTARG";;
@@ -107,6 +137,7 @@ while getopts ':M:H:I:i:N:G:U:K:T:h' OPTION; do
 		U) USERNAME="$OPTARG";;
 		K) KEYMAP="$OPTARG";;
 		T) TIMEZONE="$OPTARG";;
+		D) DISK="/dev/$OPTARG";;
 		h) Usage; exit 0;;
 	esac
 done
@@ -119,15 +150,19 @@ done
 : ${USERNAME:="Admin"}
 : ${KEYMAP:="us us-altgr-intl"}
 : ${TIMEZONE:="Europe/Amsterdam"}
+: ${DISK:="/dev/sda"}
+
+Get_Interface
 
 #Make sure that all required arguments have a value
-: ${IP:="$(udhcpc -ni eth0)"} 
+: ${IP:="$(udhcpc -ni $INTERFACE)"} 
 
 if [ -z "$IP" ]; then echo "Manual ip address input is required"; read IP; fi;
 if [ "$INET" == "static" ] && [ -z "$NETMASK" ] ; then echo "Manual netmask address input is required"; read NETMASK; fi;
 if [ "$INET" == "static" ] && [ -z "$GATEWAY" ] ; then echo "Manual gateway address input is required"; read GATEWAY; fi;
 
-
+Create_Answer
+Setup
 
 
 
