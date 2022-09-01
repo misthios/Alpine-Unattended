@@ -6,10 +6,11 @@
 #author          :Wesley van Tilburg
 #date            :01/09/2022
 #version         :0.1    
-#notes           :root passwd wil temporary be set as "y" andforced to change on the first login
+#notes           :Only sys installs are supported with this script.
 #==================================================================================================
 
 #========== Functionality ==========
+run(){
 
 #Check if wired or wireless
 ipaddr | grep -E "wlan[0-9]"
@@ -21,6 +22,68 @@ else
 	WIRED="TRUE"
 	
 fi
+
+#Create /etc/network/interfaces content for the answer file
+cat <<EOF>> ./inet
+
+EOF
+
+#Create answer file for setup-alpine
+cat <<EOF >> ./answer
+KEYMAPOPTS="$KEYMAP"
+HOSTNAMEOPTS="-n $HOST"
+DEVDOPTS=mdev
+
+# Contents of /etc/network/interfaces
+INTERFACESOPTS="auto lo
+iface lo inet loopback
+
+auto $INTERFACE
+iface eth0 inet dhcp
+    hostname alpine-test
+"
+
+# Search domain of example.com, Google public nameserver
+# DNSOPTS="-d example.com 8.8.8.8"
+
+# Set timezone to UTC
+#TIMEZONEOPTS="UTC"
+TIMEZONEOPTS=none
+
+# set http/ftp proxy
+#PROXYOPTS="http://webproxy:8080"
+PROXYOPTS=none
+
+# Add first mirror (CDN)
+APKREPOSOPTS="-1"
+
+# Create admin user
+USEROPTS="-a -u -g audio,video,netdev juser"
+#USERSSHKEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOIiHcbg/7ytfLFHUNLRgEAubFz/13SwXBOM/05GNZe4 juser@example.com"
+#USERSSHKEY="https://example.com/juser.keys"
+
+# Install Openssh
+SSHDOPTS=openssh
+#ROOTSSHKEY="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOIiHcbg/7ytfLFHUNLRgEAubFz/13SwXBOM/05GNZe4 juser@example.com"
+#ROOTSSHKEY="https://example.com/juser.keys"
+
+# Use openntpd
+# NTPOPTS="openntpd"
+NTPOPTS=none
+
+# Use /dev/sda as a sys disk
+# DISKOPTS="-m sys /dev/sda"
+DISKOPTS=none
+
+# Setup storage with label APKOVL for config storage
+#LBUOPTS="LABEL=APKOVL"
+LBUOPTS=none
+
+#APKCACHEOPTS="/media/LABEL=APKOVL/cache"
+APKCACHEOPTS=none
+EOF
+
+}
 
 
 #Some help
@@ -38,7 +101,7 @@ while getopts ':M:H:I:i:N:G:U:K:T:h' OPTION; do
 		M) MODE="$OPTARG";;
 		H) HOST="$OPTARG";;
 		I) INTERFACE="$OPTARG";;
-		i) IP="$OPTARG" && DHCP="FALSE";;
+		i) IP="$OPTARG" && INET="static";;
 		N) NETMASK="$OPTARG";;
 		G) GATEWAY="$OPTARG";;
 		U) USERNAME="$OPTARG";;
@@ -51,18 +114,20 @@ done
 
 #Default values
 : ${MODE:="standalone"}
-: ${DHCP:="TRUE"}
+: ${INET:="dhcp"}
 : ${HOST:="Alpine"}
 : ${USERNAME:="Admin"}
 : ${KEYMAP:="us us-altgr-intl"}
 : ${TIMEZONE:="Europe/Amsterdam"}
 
 #Make sure that all required arguments have a value
-: ${IP:="$(udhcpc -ni $INTERFACE)"} 
+: ${IP:="$(udhcpc -ni eth0)"} 
 
 if [ -z "$IP" ]; then echo "Manual ip address input is required"; read IP; fi;
-if [ "$DHCP" == "FALSE" ] && [ -z "$NETMASK" ] ; then echo "Manual netmask address input is required"; read NETMASK; fi;
-if [ "$DHCP" == "FALSE" ] && [ -z "$GATEWAY" ] ; then echo "Manual gateway address input is required"; read GATEWAY; fi;
+if [ "$INET" == "static" ] && [ -z "$NETMASK" ] ; then echo "Manual netmask address input is required"; read NETMASK; fi;
+if [ "$INET" == "static" ] && [ -z "$GATEWAY" ] ; then echo "Manual gateway address input is required"; read GATEWAY; fi;
+
+
 
 
 
