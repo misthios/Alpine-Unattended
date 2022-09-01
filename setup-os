@@ -1,0 +1,69 @@
+#!/bin/sh
+
+#==================================================================================================
+#title           :setup-os
+#description     :Setup the Alpine Linux base system
+#author          :Wesley van Tilburg
+#date            :01/09/2022
+#version         :0.1    
+#notes           :root passwd wil temporary be set as "y" andforced to change on the first login
+#==================================================================================================
+
+#========== Functionality ==========
+
+#Check if wired or wireless
+ipaddr | grep -E "wlan[0-9]"
+if [ "$?" -eq 0 ]; then 
+	: ${INTERFACE="$(ipaddr | grep -E "wlan[0-9]" | awk -F: '{print $2}' | tr -d '\n') "}
+	WIRED="FALSE"
+else
+	: ${INTERFACE="$(ipaddr | grep -E "eth[0-9]" | awk -F: '{print $2}' | tr -d '\n') "}
+	WIRED="TRUE"
+	
+fi
+
+
+#Some help
+# interface checks for wireless first and uses that, otherwise it defaults to the first eth it can find
+# Ip defaults to trying dhcp if not given
+
+#========== Arguments ==========
+
+# Check permissions
+if ! [ "$(id -u )" -eq 0 ]; then echo "Root is required for this script"; exit 1; fi
+
+# Handle arguments
+while getopts ':M:H:I:i:N:G:U:K:T:h' OPTION; do
+	case "$OPTION" in
+		M) MODE="$OPTARG";;
+		H) HOST="$OPTARG";;
+		I) INTERFACE="$OPTARG";;
+		i) IP="$OPTARG" && DHCP="FALSE";;
+		N) NETMASK="$OPTARG";;
+		G) GATEWAY="$OPTARG";;
+		U) USERNAME="$OPTARG";;
+		K) KEYMAP="$OPTARG";;
+		T) TIMEZONE="$OPTARG";;
+		h) Usage; exit 0;;
+	esac
+done
+
+
+#Default values
+: ${MODE:="standalone"}
+: ${DHCP:="TRUE"}
+: ${HOST:="Alpine"}
+: ${USERNAME:="Admin"}
+: ${KEYMAP:="us us-altgr-intl"}
+: ${TIMEZONE:="Europe/Amsterdam"}
+
+#Make sure that all required arguments have a value
+: ${IP:="$(udhcpc -ni $INTERFACE)"} 
+
+if [ -z "$IP" ]; then echo "Manual ip address input is required"; read IP; fi;
+if [ "$DHCP" == "FALSE" ] && [ -z "$NETMASK" ] ; then echo "Manual netmask address input is required"; read NETMASK; fi;
+if [ "$DHCP" == "FALSE" ] && [ -z "$GATEWAY" ] ; then echo "Manual gateway address input is required"; read GATEWAY; fi;
+
+
+
+
