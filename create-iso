@@ -1,0 +1,55 @@
+#!/bin/sh
+
+#==================================================================================================
+#title           :create-iso
+#description     :Create a Alpine Linux iso with custom packages
+#author          :Wesley van Tilburg
+#date            :01/09/2022
+#version         :0.1
+#notes           :This script should be ran on an alpine system/container/chroot
+#==================================================================================================
+
+#Check permissions
+if ! [ "$(id -u )" -eq 0 ]; then echo "Root is required for this script"; exit 1; fi
+
+#Make sure that the dependencies are installed
+apk update && doas apk upgrade -a
+apk add alpine-sdk build-base apk-tools alpine-conf git busybox fakeroot syslinux xorriso squashfs-tools doas mtools dosfstools grub-efi
+
+#Setup abuild
+adduser -D build -G abuild
+echo "permit nopass build" >> /etc/doas.d/doas.conf
+su build <<END2
+cd ~
+git clone --depth=1 https://gitlab.alpinelinux.org/alpine/aports.git
+echo |  abuild-keygen -i -a
+
+
+cat << EOF > ~/aports/scripts/mkimg.custom.sh
+profile_custom() {
+        profile_standard
+	apks="$apks $PACKAGES"
+	local _k _a
+      for _k in $kernel_flavors; do
+          apks="$apks linux-$_k"
+          for _a in $kernel_addons; do
+              apks="$apks $_a-$_k"
+          done
+      done
+
+}
+EOF
+doas chmod +x ~/aports/scripts/mkimg.custom.sh
+
+mkdir -p ~/iso
+
+#create iso
+sh aports/scripts/mkimage.sh --tag edge \
+	--outdir ~/iso \
+	--arch x86_64 \
+	--repository http://dl-cdn.alpinelinux.org/alpine/edge/main \
+	--repository http://dl-cdn.alpinelinux.org/alpine/edge/community \
+	--repository http://dl-cdn.alpinelinux.org/alpine/edge/testing \
+	--profile custom
+
+END2
