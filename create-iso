@@ -4,6 +4,7 @@
 #title           :create-iso
 #description     :Create a Alpine Linux iso with custom packages
 #author          :Wesley van Tilburg
+#license         :MIT
 #date            :01/09/2022
 #version         :0.1
 #notes           :This script should be ran on an alpine system/container/chroot

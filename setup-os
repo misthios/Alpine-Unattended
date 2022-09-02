@@ -4,6 +4,7 @@
 #title           :setup-os
 #description     :Setup the Alpine Linux base system
 #author          :Wesley van Tilburg
+#license         :MIT
 #date            :01/09/2022
 #version         :0.1    
 #notes           :Only sys installs are supported with this script.
