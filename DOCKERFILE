@@ -1,5 +1,7 @@
 from alpine:edge
 
+RUN mkdir -p /home/build
 COPY ./create-iso .
+COPY ./setup-os /home/build/
 
 CMD [ "./create-iso"]

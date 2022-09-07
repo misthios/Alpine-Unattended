@@ -5,8 +5,8 @@
 #description     :Create a Alpine Linux iso with custom packages
 #author          :Wesley van Tilburg
 #license         :MIT
-#date            :01/09/2022
-#version         :0.1
+#date            :05/09/2022
+#version         :0.2
 #notes           :This script should be ran on an alpine system/container/chroot
 #==================================================================================================
 
@@ -14,43 +14,121 @@
 if ! [ "$(id -u )" -eq 0 ]; then echo "Root is required for this script"; exit 1; fi
 
 #Make sure that the dependencies are installed
-apk update && doas apk upgrade -a
+apk update && apk upgrade -a
 apk add alpine-sdk build-base apk-tools alpine-conf git busybox fakeroot syslinux xorriso squashfs-tools doas mtools dosfstools grub-efi
 
-#Setup abuild
+#Setup abuild user
 adduser -D build -G abuild
 echo "permit nopass build" >> /etc/doas.d/doas.conf
-su build <<END2
+
+su build <<ABUILD
 cd ~
 git clone --depth=1 https://gitlab.alpinelinux.org/alpine/aports.git
 echo |  abuild-keygen -i -a
+ABUILD
+
+#Create custom overlay
+cat << 'Overlay' > /home/build/aports/scripts/genapkovl-setup.sh 
+#!/bin/sh -e
+
+HOSTNAME="$1"
+if [ -z "$HOSTNAME" ]; then
+	echo "usage: $0 hostname"
+	exit 1
+fi
+
+cleanup() {
+	rm -rf "$tmp"
+}
+
+makefile() {
+	OWNER="$1"
+	PERMS="$2"
+	FILENAME="$3"
+	cat > "$FILENAME"
+	chown "$OWNER" "$FILENAME"
+	chmod "$PERMS" "$FILENAME"
+}
+
+rc_add() {
+	mkdir -p "$tmp"/etc/runlevels/"$2"
+	ln -sf /etc/init.d/"$1" "$tmp"/etc/runlevels/"$2"/"$1"
+}
+
+tmp="$(mktemp -d)"
+trap cleanup EXIT
+
+mkdir -p "$tmp"/etc
+makefile root:root 0644 "$tmp"/etc/hostname <<EOF
+$HOSTNAME
+EOF
+
+mkdir -p "$tmp/etc/apk"
+echo '/media/cdrom' >> "$tmp/etc/apk/repositories"
+echo 'https://dl-cdn.alpinelinux.org/alpine/edge/main' >> "$tmp/etc/apk/repositories"
+echo 'https://dl-cdn.alpinelinux.org/alpine/edge/community'>> "$tmp/etc/apk/repositories"
+
+mkdir -p "$tmp"/etc/apk
+makefile root:root 0644 "$tmp"/etc/apk/world <<EOF
+alpine-base 
+EOF
+
+mkdir -p "$tmp"/etc/local.d
+cp /etc/inittab "$tmp/etc/inittab"
+
+makefile root:root 0755 "$tmp"/etc/local.d/setup.start <<'EOF'
+#!/bin/sh
+//todo: start the script with a recipe 
+EOF
+
+rc_add devfs sysinit
+rc_add dmesg sysinit
+rc_add mdev sysinit
+rc_add hwdrivers sysinit
+rc_add modloop sysinit
+
+rc_add hwclock boot
+rc_add modules boot
+rc_add sysctl boot
+rc_add hostname boot
+rc_add bootmisc boot
+rc_add syslog boot
+rc_add urandom boot
+rc_add local boot
+
+rc_add mount-ro shutdown
+rc_add killprocs shutdown
+rc_add savecache shutdown
+
+tar -c -C "$tmp" etc | gzip -9n > $HOSTNAME.apkovl.tar.gz
+
+Overlay
 
 
-cat << EOF > ~/aports/scripts/mkimg.custom.sh
+
+#Create custom profile
+cat << Profile > /home/build/aports/scripts/mkimg.custom.sh
 profile_custom() {
-        profile_standard
-	apks="$apks $PACKAGES"
-	local _k _a
-      for _k in $kernel_flavors; do
-          apks="$apks linux-$_k"
-          for _a in $kernel_addons; do
-              apks="$apks $_a-$_k"
-          done
-      done
+        profile_virt
+        apks="$apks vim"
+        apkovl="genapkovl-setup.sh"
 
 }
-EOF
+Profile
+
+
+su build <<ISO
 doas chmod +x ~/aports/scripts/mkimg.custom.sh
+doas chmod +x ~/aports/scripts/genapkovl-setup.sh
 
 mkdir -p ~/iso
 
 #create iso
-sh aports/scripts/mkimage.sh --tag edge \
+cd ~/aports/scripts
+sh mkimage.sh --tag unattended \
 	--outdir ~/iso \
 	--arch x86_64 \
 	--repository http://dl-cdn.alpinelinux.org/alpine/edge/main \
-	--repository http://dl-cdn.alpinelinux.org/alpine/edge/community \
-	--repository http://dl-cdn.alpinelinux.org/alpine/edge/testing \
 	--profile custom
 
-END2
+ISO
