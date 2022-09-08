@@ -71,10 +71,29 @@ echo 'https://dl-cdn.alpinelinux.org/alpine/edge/community'>> "$tmp/etc/apk/repo
 mkdir -p "$tmp"/etc/apk
 makefile root:root 0644 "$tmp"/etc/apk/world <<EOF
 alpine-base 
+agetty
 EOF
 
 mkdir -p "$tmp"/etc/local.d
-cp /etc/inittab "$tmp/etc/inittab"
+makefile root:root 0644 "$tmp/etc/inittab" << 'EOF'
+
+::sysinit:/sbin/openrc sysinit
+::sysinit:/sbin/openrc boot
+::wait:/sbin/openrc default
+
+# Set up a couple of agetty's
+tty1::respawn:/sbin/agetty --autologin root --noclear 38400 tty1 linux 
+tty2::respawn:/sbin/agetty 38400 tty2 linux
+
+# Put a getty on the serial port
+#ttyS0::respawn:/sbin/getty -L ttyS0 115200 vt100
+
+# Stuff to do for the 3-finger salute
+::ctrlaltdel:/sbin/reboot
+
+# Stuff to do before rebooting
+::shutdown:/sbin/openrc shutdown
+EOF
 
 makefile root:root 0755 "$tmp"/etc/local.d/setup.start <<'EOF'
 #!/bin/sh
@@ -110,7 +129,7 @@ Overlay
 cat << Profile > /home/build/aports/scripts/mkimg.custom.sh
 profile_custom() {
         profile_virt
-        apks="$apks vim"
+        apks="\$apks agetty"
         apkovl="genapkovl-setup.sh"
 
 }
