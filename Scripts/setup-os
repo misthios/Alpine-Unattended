@@ -7,7 +7,7 @@
 #license         :MIT
 #date            :01/09/2022
 #version         :0.1    
-#notes           :Only sys installs are supported with this script.
+#notes           :Variables are obtained from the read-recipe script
 #==================================================================================================
 
 #========== Functionality ==========
@@ -25,7 +25,6 @@ Get_Interface(){
  fi
 
 }
-
 
 
 Create_Answer(){
@@ -102,65 +101,6 @@ EOF
 
 }
 
-Usage(){
- echo -e "This script is used to setup the alpine base system
-   arguments:
-   -M	: What mode to use(standalone,ansible-master,ansible-node)
-   -H	: The hostname for the device
-   -I	: The Interface to be used, defaults to wlan if found or eth0
-   -i	: The ip for the device, leave empty to use dhcp, will be prompted if dhcp fails
-   -N	: The NetMask, only required when not using dhcp
-   -G	: The GateWay ip, only required when not using dhcp
-   -U	: Username for the administrator, defaults to admin
-   -K	: Keymap, defaults to us-altgr-intl
-   -T	: Timezone, defaults to Europe/Amsterdam
-   -D	: Disk name (sda/nvme01), defaults to sda"
-}
-
-#Some help
-# interface checks for wireless first and uses that, otherwise it defaults to the first eth it can find
-# Ip defaults to trying dhcp if not given
-
-#========== Arguments ==========
-
-# Check permissions
-if ! [ "$(id -u )" -eq 0 ]; then echo "Root is required for this script"; exit 1; fi
-
-# Handle arguments
-while getopts ':M:H:I:i:N:G:U:K:T:D:h' OPTION; do
-	case "$OPTION" in
-		M) MODE="$OPTARG";;
-		H) HOST="$OPTARG";;
-		I) INTERFACE="$OPTARG";;
-		i) IP="$OPTARG" && INET="static";;
-		N) NETMASK="$OPTARG";;
-		G) GATEWAY="$OPTARG";;
-		U) USERNAME="$OPTARG";;
-		K) KEYMAP="$OPTARG";;
-		T) TIMEZONE="$OPTARG";;
-		D) DISK="/dev/$OPTARG";;
-		h) Usage; exit 0;;
-	esac
-done
-
-
-#Default values
-: ${MODE:="standalone"}
-: ${INET:="dhcp"}
-: ${HOST:="Alpine"}
-: ${USERNAME:="Admin"}
-: ${KEYMAP:="us us-altgr-intl"}
-: ${TIMEZONE:="Europe/Amsterdam"}
-: ${DISK:="/dev/sda"}
-
-Get_Interface
-
-#Make sure that all required arguments have a value
-: ${IP:="$(udhcpc -ni $INTERFACE)"} 
-
-if [ -z "$IP" ]; then echo "Manual ip address input is required"; read IP; fi;
-if [ "$INET" == "static" ] && [ -z "$NETMASK" ] ; then echo "Manual netmask address input is required"; read NETMASK; fi;
-if [ "$INET" == "static" ] && [ -z "$GATEWAY" ] ; then echo "Manual gateway address input is required"; read GATEWAY; fi;
 
 Create_Answer
 Setup
