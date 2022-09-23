@@ -1,0 +1,61 @@
+#!/bin/sh
+
+#==================================================================================================
+#title           :generate-answer
+#description     :generate answerfile
+#author          :Wesley van Tilburg
+#license         :MIT
+#date            :23/09/2022
+#version         :0.1    
+#notes           :Variables are obtained from the read-recipe script
+#==================================================================================================
+
+#========== Functionality ==========
+
+#load the read-recipe script
+ . ./read-recipe
+ run
+
+
+ #Create interface settings for the answer file
+ if [ "$INET" == "static" ]; then
+ 	NET_VARS="$(echo -e "	address $IP
+     	 netmask $NETMASK
+    	 gateway $GATEWAY")"
+ else
+	NET_VARS="$(echo -e "hostname $HOST")"
+ fi
+
+ DISK="$(echo "$DISK 3" | tr -d' ' )" 
+ #Create answer file for setup-alpine
+ cat <<EOF >> ./answer
+ KEYMAPOPTS="$KEYMAP"
+ HOSTNAMEOPTS="-n $HOST"
+ DEVDOPTS=mdev
+
+ # Contents of /etc/network/interfaces
+ INTERFACESOPTS="
+ iface lo inet loopback
+
+ auto $INTERFACE
+    iface $INTERFACE inet $INET
+     $NET_VARS
+ "
+
+ DNSOPTS="-d $HOST.local 1.1.1.1"
+
+ TIMEZONEOPTS="-z $TIMEZONE"
+ PROXYOPTS=none
+ APKREPOSOPTS="-1"
+
+ SSHDOPTS="-c openssh"
+ NTPOPTS="-c openntpd"
+ DISKOPTS="-m sys /dev/sda"
+ LBUOPTS=none
+ APKCACHEOPTS=none
+ USEROPTS="-a -u -g wheel admin"
+ USERSSHKEY="none"
+
+EOF
+
+

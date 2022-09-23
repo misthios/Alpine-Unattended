@@ -1,0 +1,46 @@
+#!/bin/sh
+
+#==================================================================================================
+#title           :read-recipe
+#description     :parse the given recipe file and load the answers
+#author          :Wesley van Tilburg
+#license         :MIT
+#date            :12/09/2022
+#version         :0.1
+#notes           :
+#==================================================================================================
+
+run(){
+if ! command -v yq ; then apk add yq; fi
+
+RECIPE="./Recipe.yaml"
+
+#--------- OS options ---------#
+VERSION="$(yq eval '.os.version' $RECIPE)"
+REPOS="$(yq eval '.os.repos' $RECIPE | sed "s/{{version}}/$VERSION/g" | cut -c 2-)"
+DISK="$(yq eval '.os.disk' $RECIPE)"
+HOST="$(yq eval '.os.hostname' $RECIPE)"
+KEYMAP="$(yq eval '.os.keymap' $RECIPE)"
+TIMEZONE="$(yq eval '.os.timezone' $RECIPE)"
+#------------------------------#
+
+#--------- Interface options ---------#
+INTERFACE="$(yq eval '.interface.name' $RECIPE)"
+INET="$(yq eval '.interface.inet' $RECIPE)"
+if [ "$INET" == "static" ]; then
+  IP="$(yq eval '.interface.ip' $RECIPE)"
+  GATEWAY="$(yq eval '.interface.gateway' $RECIPE)"
+  NETMASK="$(yq eval '.interface.netmask' $RECIPE)"
+fi
+#-------------------------------------#
+
+#--------- User options ---------#
+USERNAME="$(yq eval '.user.username' $RECIPE)"
+#GROUP="$(yq -r '.user.groups' $RECIPE)"
+}
+
+
+
+
+
+

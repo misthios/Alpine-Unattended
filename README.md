@@ -1,17 +1,15 @@
-# Alpine-Automation
+# Alpine-Unattended
+Proof of concept of a unattended Alpine linux install
 
-Automations for Alpine Linux using shell and ansible
 
 ## Features
 Custom live iso generation
 
 
 ### Make a custom iso
-In the code block below is a example to make a custom iso
-````bash
-export PACKAGES="firefox foot "
-make iso   or  make iso-docker
+To make a custom iso you first need to edit the Recipe.yaml file to fit your needs
+After that run either of the commands down below
+```bash
+make iso-docker or make iso-podman
 ```
-
-make iso-docker uses a alpine container to build
-while make iso uses the system apk
+The iso can be found in a new ./iso directory

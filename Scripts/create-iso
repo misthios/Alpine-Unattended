@@ -15,22 +15,28 @@ if ! [ "$(id -u )" -eq 0 ]; then echo "Root is required for this script"; exit 1
 
 #Make sure that the dependencies are installed
 apk update && apk upgrade -a
-apk add alpine-sdk build-base apk-tools alpine-conf git busybox fakeroot syslinux xorriso squashfs-tools doas mtools dosfstools grub-efi
+apk add alpine-sdk build-base apk-tools alpine-conf git busybox fakeroot syslinux xorriso squashfs-tools doas mtools dosfstools grub-efi yq
 
 #Setup abuild user
 adduser -D build -G abuild
+chown -R build:abuild /home/build
 echo "permit nopass build" >> /etc/doas.d/doas.conf
 
 su build <<ABUILD
 cd ~
 git clone --depth=1 https://gitlab.alpinelinux.org/alpine/aports.git
-echo |  abuild-keygen -i -a
+echo | abuild-keygen -i -a
+ls ./
+./generate-answer
 ABUILD
+
 
 #Create custom overlay
 cat << 'Overlay' > /home/build/aports/scripts/genapkovl-setup.sh 
 #!/bin/sh -e
 
+ANSWER="$(cat /home/build/answer)"
+echo $ANSWER
 HOSTNAME="$1"
 if [ -z "$HOSTNAME" ]; then
 	echo "usage: $0 hostname"
@@ -63,27 +69,35 @@ makefile root:root 0644 "$tmp"/etc/hostname <<EOF
 $HOSTNAME
 EOF
 
-mkdir -p "$tmp/etc/apk"
-echo '/media/cdrom' >> "$tmp/etc/apk/repositories"
-echo 'https://dl-cdn.alpinelinux.org/alpine/edge/main' >> "$tmp/etc/apk/repositories"
-echo 'https://dl-cdn.alpinelinux.org/alpine/edge/community'>> "$tmp/etc/apk/repositories"
+makefile root:root 0755 "$tmp"/etc/setup-os <<EOF
+#!/bin/sh
+yes | setup-alpine -f /etc/answer
+sed -i 's#tty1::respawn:./etc/setup-os#tty1::respawn:/sbin/getty 38400 tty1 linux#g' /mnt/etc/inittab 
+reboot
 
-mkdir -p "$tmp"/etc/apk
-makefile root:root 0644 "$tmp"/etc/apk/world <<EOF
-alpine-base 
-agetty
 EOF
 
+makefile root:root 0644 "$tmp"/etc/answer << EOF
+$ANSWER
+EOF
+
+
+mkdir -p "$tmp/etc/apk"
+makefile root:root 0644 "$tmp"/etc/apk/world << EOF
+alpine-base
+EOF
+
+
+
 mkdir -p "$tmp"/etc/local.d
-makefile root:root 0644 "$tmp/etc/inittab" << 'EOF'
+makefile root:root 0644 "$tmp/etc/inittab" << EOF
 
 ::sysinit:/sbin/openrc sysinit
 ::sysinit:/sbin/openrc boot
 ::wait:/sbin/openrc default
 
-# Set up a couple of agetty's
-tty1::respawn:/sbin/agetty --autologin root --noclear 38400 tty1 linux 
-tty2::respawn:/sbin/agetty 38400 tty2 linux
+# Set up the installer to autorun on tty1
+tty1::respawn:./etc/setup-os
 
 # Put a getty on the serial port
 #ttyS0::respawn:/sbin/getty -L ttyS0 115200 vt100
@@ -93,11 +107,6 @@ tty2::respawn:/sbin/agetty 38400 tty2 linux
 
 # Stuff to do before rebooting
 ::shutdown:/sbin/openrc shutdown
-EOF
-
-makefile root:root 0755 "$tmp"/etc/local.d/setup.start <<'EOF'
-#!/bin/sh
-//todo: start the script with a recipe 
 EOF
 
 rc_add devfs sysinit
@@ -112,8 +121,6 @@ rc_add sysctl boot
 rc_add hostname boot
 rc_add bootmisc boot
 rc_add syslog boot
-rc_add urandom boot
-rc_add local boot
 
 rc_add mount-ro shutdown
 rc_add killprocs shutdown
@@ -129,10 +136,10 @@ Overlay
 cat << Profile > /home/build/aports/scripts/mkimg.custom.sh
 profile_custom() {
         profile_virt
-        apks="\$apks agetty"
         apkovl="genapkovl-setup.sh"
-
 }
+
+
 Profile
 
 
@@ -147,7 +154,8 @@ cd ~/aports/scripts
 sh mkimage.sh --tag unattended \
 	--outdir ~/iso \
 	--arch x86_64 \
-	--repository http://dl-cdn.alpinelinux.org/alpine/edge/main \
+	--repository http://dl-cdn.alpinelinux.org/alpine/v3.15/main \
+	--repository http://dl-cdn.alpinelinux.org/alpine/v3.15/community \
 	--profile custom
 
 ISO

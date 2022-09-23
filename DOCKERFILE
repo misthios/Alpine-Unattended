@@ -1,7 +1,8 @@
 from alpine:edge
 
-RUN mkdir -p /home/build
-COPY ./create-iso .
-COPY ./setup-os /home/build/
+COPY ./Scripts/create-iso .
+COPY ./Recipe.yaml /home/build/
+COPY ./Scripts/read-recipe /home/build/
+COPY ./Scripts/generate-answer /home/build/
 
 CMD [ "./create-iso"]

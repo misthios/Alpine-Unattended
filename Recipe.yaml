@@ -1,0 +1,18 @@
+os:
+  version: v3.16 #supports versions and latest-stable/edge
+  repos:
+    - https://dl-cdn.alpinelinux.org/alpine/{{version}}/main
+    - https://dl-cdn.alpinelinux.org/alpine/{{version}}/community
+  disk: sda
+  hostname: alpine-unattended
+  keymap: us us-altgr-intl
+  timezone: Europe/Amsterdam
+interface: #1 interface supported for now
+    name: eth0
+    inet: dhcp
+    ip: 192.168.2.164
+    gateway: 192.168.2.254
+    netmask: 255.255.255.0
+user:
+    username: admin
+    group: wheel
