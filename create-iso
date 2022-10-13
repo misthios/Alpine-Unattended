@@ -34,7 +34,6 @@ cat << 'Overlay' > /home/build/aports/scripts/genapkovl-setup.sh
 #!/bin/sh -e
 
 HOSTNAME="$1"
-IP="192.168.2.19"
 if [ -z "$HOSTNAME" ]; then
 	echo "usage: $0 hostname"
 	exit 1
@@ -71,7 +70,7 @@ makefile root:root 0755 "$tmp"/etc/setup-os <<EOF
 yes | setup-alpine -f https://git.plabble.org/misthios/Alpine-Unattended/raw/branch/main/answer
 mount -t ext4 /dev/sda3 /mnt
 sed -i 's#tty1::respawn:./etc/setup-os#tty1::respawn:/sbin/getty 38400 tty1 linux#g' /mnt/etc/inittab 
-echo "$HOSTNAME is setup with the following ips: $(ipaddr | grep inet | awk '{printf "%s ip %s\n", $NF, $2}' )" | nc 192.168.2.19 9999
+echo "$HOSTNAME is setup with the following ips: $(ipaddr | grep inet | awk '{printf "%s ip %s\n", $NF, $2}' )" | nc $IP 9999
 poweroff
 
 EOF
