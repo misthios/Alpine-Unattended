@@ -5,19 +5,18 @@
 #description     :parse the given recipe file and load the answers
 #author          :Wesley van Tilburg
 #license         :MIT
-#date            :12/09/2022
-#version         :0.1
+#date            :13/10/2022
+#version         :0.2
 #notes           :
 #==================================================================================================
 
-run(){
-if ! command -v yq ; then apk add yq; fi
+parse_recipe(){
+if ! command -v yq > /dev/null ; then apk add yq; fi
 
 RECIPE="./Recipe.yaml"
 
 #--------- OS options ---------#
 VERSION="$(yq eval '.os.version' $RECIPE)"
-REPOS="$(yq eval '.os.repos' $RECIPE | sed "s/{{version}}/$VERSION/g" | cut -c 2-)"
 DISK="$(yq eval '.os.disk' $RECIPE)"
 HOST="$(yq eval '.os.hostname' $RECIPE)"
 KEYMAP="$(yq eval '.os.keymap' $RECIPE)"
@@ -36,8 +35,58 @@ fi
 
 #--------- User options ---------#
 USERNAME="$(yq eval '.user.username' $RECIPE)"
+SSHKEY="$(yq eval '.user.sshkey' $RECIPE)"
 #GROUP="$(yq -r '.user.groups' $RECIPE)"
 }
+
+generate_answer(){
+ #Create interface settings for the answer file
+ if [ "$INET" == "static" ]; then
+ 	NET_VARS="$(echo -e "	address $IP
+     	 netmask $NETMASK
+    	 gateway $GATEWAY")"
+ else
+	NET_VARS="$(echo -e "hostname $HOST")"
+ fi
+
+ DISK="/dev/$DISK" 
+ #Create answer file for setup-alpine
+ cat <<EOF >> ./answer
+ KEYMAPOPTS="$KEYMAP"
+ HOSTNAMEOPTS="-n $HOST"
+ DEVDOPTS=mdev
+
+ # Contents of /etc/network/interfaces
+ INTERFACESOPTS="
+ iface lo inet loopback
+
+ auto $INTERFACE
+    iface $INTERFACE inet $INET
+     $NET_VARS
+ "
+
+ DNSOPTS="-d $HOST.local 1.1.1.1"
+
+ TIMEZONEOPTS="-z $TIMEZONE"
+ PROXYOPTS=none
+ APKREPOSOPTS="-1 -c"
+
+ SSHDOPTS="-c openssh"
+ NTPOPTS="-c openntpd"
+ DISKOPTS="-m sys /dev/sda"
+ LBUOPTS=none
+ APKCACHEOPTS=none
+ USEROPTS="-a -u -g wheel $USERNAME"
+ USERSSHKEY="$SSHKEY"
+
+EOF
+}
+
+parse_recipe
+generate_answer
+
+
+
 
 
 

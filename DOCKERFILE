@@ -1,8 +1,5 @@
 from alpine:edge
 
-COPY ./Scripts/create-iso .
-COPY ./Recipe.yaml /home/build/
-COPY ./Scripts/read-recipe /home/build/
-COPY ./Scripts/generate-answer /home/build/
+COPY create-iso .
 
 CMD [ "./create-iso"]

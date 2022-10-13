@@ -5,8 +5,8 @@
 #description     :Create a Alpine Linux iso with custom packages
 #author          :Wesley van Tilburg
 #license         :MIT
-#date            :05/09/2022
-#version         :0.2
+#date            :13/10/2022
+#version         :0.3
 #notes           :This script should be ran on an alpine system/container/chroot
 #==================================================================================================
 
@@ -26,8 +26,6 @@ su build <<ABUILD
 cd ~
 git clone --depth=1 https://gitlab.alpinelinux.org/alpine/aports.git
 echo | abuild-keygen -i -a
-ls ./
-./generate-answer
 ABUILD
 
 
@@ -35,9 +33,8 @@ ABUILD
 cat << 'Overlay' > /home/build/aports/scripts/genapkovl-setup.sh 
 #!/bin/sh -e
 
-ANSWER="$(cat /home/build/answer)"
-echo $ANSWER
 HOSTNAME="$1"
+IP="192.168.2.19"
 if [ -z "$HOSTNAME" ]; then
 	echo "usage: $0 hostname"
 	exit 1
@@ -71,9 +68,11 @@ EOF
 
 makefile root:root 0755 "$tmp"/etc/setup-os <<EOF
 #!/bin/sh
-yes | setup-alpine -f /etc/answer
+yes | setup-alpine -f https://git.plabble.org/misthios/Alpine-Unattended/raw/branch/main/answer
+mount -t ext4 /dev/sda3 /mnt
 sed -i 's#tty1::respawn:./etc/setup-os#tty1::respawn:/sbin/getty 38400 tty1 linux#g' /mnt/etc/inittab 
-reboot
+echo "$HOSTNAME is setup with the following ips: $(ipaddr | grep inet | awk '{printf "%s ip %s\n", $NF, $2}' )" | nc 192.168.2.19 9999
+poweroff
 
 EOF
 
@@ -154,8 +153,8 @@ cd ~/aports/scripts
 sh mkimage.sh --tag unattended \
 	--outdir ~/iso \
 	--arch x86_64 \
-	--repository http://dl-cdn.alpinelinux.org/alpine/v3.15/main \
-	--repository http://dl-cdn.alpinelinux.org/alpine/v3.15/community \
+	--repository http://dl-cdn.alpinelinux.org/alpine/v3.16/main \
+	--repository http://dl-cdn.alpinelinux.org/alpine/v3.16/community \
 	--profile custom
 
 ISO

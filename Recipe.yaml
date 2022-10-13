@@ -1,8 +1,5 @@
 os:
   version: v3.16 #supports versions and latest-stable/edge
-  repos:
-    - https://dl-cdn.alpinelinux.org/alpine/{{version}}/main
-    - https://dl-cdn.alpinelinux.org/alpine/{{version}}/community
   disk: sda
   hostname: alpine-unattended
   keymap: us us-altgr-intl
@@ -15,4 +12,5 @@ interface: #1 interface supported for now
     netmask: 255.255.255.0
 user:
     username: admin
+    sshkey: https://gitlab.alpinelinux.org/Misthios.keys
     group: wheel
